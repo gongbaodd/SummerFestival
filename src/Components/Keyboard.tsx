@@ -1,7 +1,7 @@
 import { ActionManager, ExecuteCodeAction, Scalar } from "@babylonjs/core";
 import { signal } from "@preact/signals-react";
-import { FC, useCallback, useMemo, useState } from "react";
-import { useScene } from "react-babylonjs";
+import React, { FC, createContext, useCallback, useMemo, useState } from "react";
+import { useBeforeRender, useScene } from "react-babylonjs";
 
 const keyMap = new Map<string, boolean>()
 
@@ -50,26 +50,46 @@ const updateFromKeybaord = () => {
     }
 }
 
+const keyDown = new ExecuteCodeAction(ActionManager.OnKeyDownTrigger, (evt) => {
+    keyMap.set(evt.sourceEvent.key, evt.sourceEvent.type === "keydown")
+});
+const keyUp = new ExecuteCodeAction(ActionManager.OnKeyUpTrigger, (evt) => {
+    keyMap.set(evt.sourceEvent.key, evt.sourceEvent.type === "keydown")
+});
+
 interface Props {
     children: React.ReactNode
 }
 
-export const Controller: FC<Props> = ({ children }) => {
+const states = {
+    vertical,
+    verticalAxis,
+    horizontal,
+    horizontalAxis,
+    dashing,
+    jumKeyDown,
+};
+
+interface IContext {
+    states: typeof states
+}
+
+export const Keyboard: FC<Props> & IContext = function ({ children }) {
     const scene = useScene()
-        
-    const actionManager = useMemo(() => {
+
+    useMemo(() => {
         if (!scene) return
         const am = new ActionManager(scene)
-        const keyDown = new ExecuteCodeAction(ActionManager.OnKeyDownTrigger, (evt) => {
-            keyMap.set(evt.sourceEvent.key, evt.sourceEvent.type === "keydown")
-        });
-        const keyUp = new ExecuteCodeAction(ActionManager.OnKeyUpTrigger, (evt) => {
-            keyMap.set(evt.sourceEvent.key, evt.sourceEvent.type === "keyup")
-        });
         am.registerAction(keyDown)
         am.registerAction(keyUp)
         return am
     }, [scene])
-    
+
+    useBeforeRender(() => {
+        updateFromKeybaord()
+    })
+
     return children;
 }
+
+Keyboard.states = states
