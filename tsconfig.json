@@ -1,14 +1,18 @@
 {
   "compilerOptions": {
-    "target": "es6",
+    "target": "ESNext",
     "module": "commonjs",
     "noResolve": false,
     "noImplicitAny": false,
     "sourceMap": true,
-    "preserveConstEnums":true,
+    "preserveConstEnums": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true,
+    "jsx": "react-jsx",
     "lib": [
-        "dom",
-        "es6"
+      "dom",
+      "es6"
     ],
     // "outDir": "./dist"
     "rootDir": "src"
