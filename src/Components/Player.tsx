@@ -255,6 +255,7 @@ export const Player: FC<Props> = ({ shadow }) => {
         if (!scene) return;
         if (!cameraRef.current) return;
         scene.activeCamera = cameraRef.current;
+        cameraRef.current.detachControl()
     }, [scene]);
 
     useEffect(() => {

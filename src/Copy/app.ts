@@ -23,6 +23,7 @@ class PlayerInput {
 
   constructor(scene: BABYLON.Scene) {
     this._scene = scene;
+    
     this._scene.actionManager = new BABYLON.ActionManager(this._scene);
     this._scene.actionManager.registerAction(
       new BABYLON.ExecuteCodeAction(
