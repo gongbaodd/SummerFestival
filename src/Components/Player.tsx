@@ -38,7 +38,7 @@ const GRAVITY = -2.8;
 const DASH_FACTOR = 2.5;
 const DASH_TIME = 10;
 const DOWN_TILT = new Vector3(0.8290313946973066, 0, 0);
-const ORINGINAL_TILT = new Vector3(0.5934119456780721, 0, 0);
+const ORIGINAL_TILT = new Vector3(0.5934119456780721, 0, 0);
 
 const camPos = new Vector3(0, 0, -30);
 
@@ -52,7 +52,7 @@ export const Player: FC<Props> = ({ shadow }) => {
 
     const cameraRef = useRef<UniversalCamera | null>(null);
 
-    const player = useMemo(() => {
+    const player = useMemo<Mesh>(() => {
         if (!scene) return;
 
         const outer = MeshBuilder.CreateBox(
@@ -71,10 +71,9 @@ export const Player: FC<Props> = ({ shadow }) => {
 
         outer.rotationQuaternion = new Quaternion(0, 1, 0, 0);
 
-        shadow?.addShadowCaster(outer);
-
         return outer;
-    }, [scene, shadow]);
+    }, [scene]);
+
     const body = useMemo(() => {
         if (!scene) return;
 
@@ -115,14 +114,14 @@ export const Player: FC<Props> = ({ shadow }) => {
     }, []);
     const yTilt = useMemo(() => {
         const yTilt = new TransformNode("yTilt");
-        // yTilt.rotation = Player.ORIGINAL_TILT
+        yTilt.rotation = ORIGINAL_TILT;
         return yTilt;
     }, []);
 
     const moveDirection = signal(new Vector3(0, 0, 0));
     const gravity = useMemo(() => new Vector3(), []);
     const grounded = signal(false);
-    const lastGroudPos = useMemo(() =>new Vector3(), []);
+    const lastGroudPos = useMemo(() => new Vector3(), []);
     const jumpCount = signal(1);
     const dashPressed = signal(false);
     const canDash = signal(true);
@@ -244,7 +243,7 @@ export const Player: FC<Props> = ({ shadow }) => {
 
         return picks.some(pick => {
             if (pick.hit && !pick.getNormal().equals(Vector3.Up())) {
-                if(pick.pickedMesh.name.includes("stair")) {
+                if (pick.pickedMesh.name.includes("stair")) {
                     return true
                 }
             }
@@ -258,11 +257,25 @@ export const Player: FC<Props> = ({ shadow }) => {
         scene.activeCamera = cameraRef.current;
     }, [scene]);
 
+    useEffect(() => {
+        shadow?.addShadowCaster(player);
+    }, [shadow])
+
     useBeforeRender(() => {
-        camRoot.position = Vector3.Lerp(camRoot.position, player.position, 0.4);
         updateFromControls();
         updateGroundDetection();
         player.moveWithCollisions(moveDirection.value);
+
+        const centerPlayer = new Vector3(
+            player.position.x,
+            player.position.y + 2,
+            player.position.z
+        )
+        camRoot.position = Vector3.Lerp(
+            camRoot.position,
+            centerPlayer, 
+            0.4
+        );
     });
 
     return (
@@ -273,15 +286,15 @@ export const Player: FC<Props> = ({ shadow }) => {
                 </abstractMesh>
             </abstractMesh>
             <transformNode name="camRoot" fromInstance={camRoot}>
-                <universalCamera
-                    ref={cameraRef}
-                    name="playerCam"
-                    position={camPos}
-                    fov={0.5}
-                    lockedTarget={camRoot.position}
-                >
-                    <transformNode name="yTilt" fromInstance={yTilt} />
-                </universalCamera>
+                <transformNode name="yTilt" fromInstance={yTilt} >
+                    <universalCamera
+                        ref={cameraRef}
+                        name="playerCam"
+                        position={camPos}
+                        fov={0.5}
+                        lockedTarget={camRoot.position}
+                    />
+                </transformNode>
             </transformNode>
         </>
     );
