@@ -1,5 +1,5 @@
-import { ActionManager, ExecuteCodeAction, Scalar } from "@babylonjs/core";
-import { signal, useSignal } from "@preact/signals-react";
+import { ActionManager, ExecuteCodeAction, Nullable, Scalar } from "@babylonjs/core";
+import { Signal, signal, useSignal } from "@preact/signals-react";
 import React, {
   FC,
   createContext,
@@ -13,17 +13,17 @@ interface Props {
   children: React.ReactNode;
 }
 
-const INIT_STATES = {
-  vertical: 0,
-  verticalAxis: 0,
-  horizontal: 0,
-  horizontalAxis: 0,
-  dashing: false,
-  jumKeyDown: false,
-};
+interface IStates {
+  vertical: Signal<number>;
+  verticalAxis: Signal<number>;
+  horizontal: Signal<number>;
+  horizontalAxis: Signal<number>;
+  dashing: Signal<boolean>;
+  jumKeyDown: Signal<boolean>;
+}
 
 interface IContext {
-  Context: React.Context<typeof INIT_STATES>;
+  Context: React.Context<Nullable<IStates>>;
 }
 
 export const Keyboard: FC<Props> & IContext = function ({ children }) {
@@ -37,15 +37,34 @@ export const Keyboard: FC<Props> & IContext = function ({ children }) {
   const dashing = useSignal(false);
   const jumKeyDown = useSignal(false);
 
+  
+  const keyDown = useMemo(
+    () =>
+      new ExecuteCodeAction(ActionManager.OnKeyDownTrigger, (evt) => {
+        const isKeydown = evt.sourceEvent.type === "keydown";
+        keyMap.set(evt.sourceEvent.key, isKeydown);
+      }),
+    []
+  );
+  const keyUp = useMemo(
+    () =>
+      new ExecuteCodeAction(ActionManager.OnKeyUpTrigger, (evt) => {
+        const isKeydown = evt.sourceEvent.type === "keydown";
+        keyMap.set(evt.sourceEvent.key, isKeydown);
+      }),
+    []
+  );
+
   useMemo(() => {
     if (!scene) return;
     const am = new ActionManager(scene);
     am.registerAction(keyDown);
     am.registerAction(keyUp);
+    scene.actionManager = am;
     return am;
   }, [scene]);
 
-  const updateFromKeybaord = () => {
+  const updateFromKeybaord = useCallback(() => {
     if (keyMap.get("ArrowUp")) {
       vertical.value = Scalar.Lerp(vertical.value, 1, 0.2);
       verticalAxis.value = 1;
@@ -79,22 +98,8 @@ export const Keyboard: FC<Props> & IContext = function ({ children }) {
     } else {
       jumKeyDown.value = false;
     }
-  };
+  }, [keyMap, horizontal, vertical, dashing, jumKeyDown]);
 
-  const keyDown = useMemo(
-    () =>
-      new ExecuteCodeAction(ActionManager.OnKeyDownTrigger, (evt) => {
-        keyMap.set(evt.sourceEvent.key, evt.sourceEvent.type === "keydown");
-      }),
-    []
-  );
-  const keyUp = useMemo(
-    () =>
-      new ExecuteCodeAction(ActionManager.OnKeyUpTrigger, (evt) => {
-        keyMap.set(evt.sourceEvent.key, evt.sourceEvent.type === "keydown");
-      }),
-    []
-  );
 
   useBeforeRender(() => {
     updateFromKeybaord();
@@ -103,12 +108,12 @@ export const Keyboard: FC<Props> & IContext = function ({ children }) {
   return (
     <Keyboard.Context.Provider
       value={{
-        vertical: vertical.value,
-        verticalAxis: verticalAxis.value,
-        horizontal: horizontal.value,
-        horizontalAxis: horizontalAxis.value,
-        dashing: dashing.value,
-        jumKeyDown: jumKeyDown.value,
+        vertical: vertical,
+        verticalAxis: verticalAxis,
+        horizontal: horizontal,
+        horizontalAxis: horizontalAxis,
+        dashing: dashing,
+        jumKeyDown: jumKeyDown,
       }}
     >
       {children}
@@ -116,4 +121,4 @@ export const Keyboard: FC<Props> & IContext = function ({ children }) {
   );
 };
 
-Keyboard.Context = createContext(INIT_STATES);
+Keyboard.Context = createContext(null);

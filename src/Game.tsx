@@ -4,7 +4,7 @@ import { EngineComponent } from "./Components/Babylon";
 import { Loading } from "./Scenes/Loading";
 import { Action } from "./Scenes/Action"
 
-const isLoading = signal(true);
+const isLoading = signal(false);
 
 const onPlay = () => {
   isLoading.value = false;
