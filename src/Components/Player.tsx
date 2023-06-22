@@ -10,6 +10,7 @@ import {
     Mesh,
     Nullable,
     ShadowGenerator,
+    Ray,
 } from "@babylonjs/core";
 import {
     FC,
@@ -148,6 +149,24 @@ export const Player: FC<Props> = ({ shadow }) => {
             player.rotationQuaternion = Quaternion.Slerp(player.rotationQuaternion, targ, 10*deltaTime);
         }
     }, [scene, keyboard]);
+
+    const floorRaycast = useCallback((offsetx: number, offsetz: number, raycastlen: number) => {
+        if (!scene) return;
+        const rayCastFloorPos = new Vector3(player.position.x + offsetx, player.position.y + 0.5, player.position.z + offsetz);
+        const ray = new Ray(rayCastFloorPos, Vector3.Up().scale(-1), raycastlen);
+        const predict = (mesh: Mesh) => mesh.isPickable && mesh.isEnabled()
+        const pick = scene.pickWithRay(ray, predict);
+        if (pick.hit) {
+            return pick.pickedPoint;
+        } else {
+            return Vector3.Zero();
+        }
+    }, [scene]);
+
+    const isGrounded = useCallback(() => {
+        const noGround = floorRaycast(0, 0, 0.6).equals(Vector3.Zero());
+        return !noGround;
+    }, [floorRaycast]);
 
     useEffect(() => {
         if (!scene) return;
