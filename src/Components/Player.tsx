@@ -120,9 +120,13 @@ export const Player: FC<Props> = ({ shadow }) => {
     }, []);
 
     const moveDirection = signal(new Vector3(0, 0, 0));
-    const gravity = signal(new Vector3());
+    const gravity = useMemo(() => new Vector3(), []);
     const grounded = signal(false);
-    const lastGroudPos = signal(new Vector3());
+    const lastGroudPos = useMemo(() =>new Vector3(), []);
+    const jumpCount = signal(1);
+    const dashPressed = signal(false);
+    const canDash = signal(true);
+    const dashTime = signal(0);
 
     const updateFromControls = useCallback(() => {
         if (!scene) return;
@@ -131,6 +135,17 @@ export const Player: FC<Props> = ({ shadow }) => {
         const deltaTime = scene.getEngine().getDeltaTime() / 1000;
         const h = keyboard.horizontal.value;
         const v = keyboard.vertical.value;
+
+        let dashFactor = 1;
+        if (dashPressed.value) {
+            if (dashTime.value > DASH_TIME) {
+                dashTime.value = 0;
+                dashPressed.value = false;
+            } else {
+                dashFactor = DASH_FACTOR;
+            }
+            dashTime.value++;
+        }
 
         const fwd = camRoot.forward;
         const right = camRoot.right;
@@ -142,14 +157,24 @@ export const Player: FC<Props> = ({ shadow }) => {
         if (inputAmt > 1) inputAmt = 1;
         if (inputAmt < 0) inputAmt = 0;
 
-        moveDirection.value = (new Vector3((move).normalize().x, 0, (move).normalize().z)).scaleInPlace(PLAYER_SPEED * inputAmt);
+        moveDirection.value = new Vector3(
+            (move).normalize().x * dashFactor,
+            0,
+            (move).normalize().z * dashFactor
+        ).scaleInPlace(PLAYER_SPEED * inputAmt);
+
+        const { dashing } = keyboard;
+        if (dashing.value && !dashPressed.value && canDash.value && !grounded.value) {
+            canDash.value = false;
+            dashPressed.value = true;
+        }
 
         // rotation
         const rotation = new Vector3(keyboard.horizontalAxis.value, 0, keyboard.verticalAxis.value);
         if (rotation.length() > 0) {
             const angle = Math.atan2(keyboard.horizontalAxis.value, keyboard.verticalAxis.value) + camRoot.rotation.y;
             const targ = Quaternion.FromEulerAngles(0, angle, 0);
-            player.rotationQuaternion = Quaternion.Slerp(player.rotationQuaternion, targ, 10*deltaTime);
+            player.rotationQuaternion = Quaternion.Slerp(player.rotationQuaternion, targ, 10 * deltaTime);
         }
     }, [scene, keyboard]);
 
@@ -176,11 +201,56 @@ export const Player: FC<Props> = ({ shadow }) => {
         const deltaTime = scene.getEngine().getDeltaTime() / 1000;
 
         if (isGrounded()) {
-            gravity.value.y = 0;
+            gravity.y = 0;
             grounded.value = true;
-            lastGroudPos.value = player.position.clone();
+            lastGroudPos.copyFrom(player.position);
+            jumpCount.value = 1;
+            canDash.value = true;
+            dashTime.value = 0;
+            dashPressed.value = false;
         }
-    }, [isGrounded])
+
+        const { jumKeyDown } = keyboard;
+        if (jumKeyDown.value && jumpCount.value > 0) {
+            gravity.y = JUMP_FORCE;
+            jumpCount.value--;
+        }
+    }, [isGrounded, keyboard])
+
+    const checkSlope = useCallback(() => {
+        if (!scene) return;
+
+        const predicate = (mesh: Mesh) => mesh.isPickable && mesh.isEnabled()
+
+        const picks = [
+            [0, .5, .25],
+            [0, .5, -0.25],
+            [.25, .5, 0],
+            [-.25, .5, 0]
+        ].map(([x, y, z]) => {
+            const raycast = new Vector3(
+                player.position.x + x,
+                player.position.y + y,
+                player.position.z + z
+            )
+            const ray = new Ray(
+                raycast,
+                Vector3.Up().scale(-1),
+                1.5
+            )
+            const pick = scene.pickWithRay(ray, predicate)
+            return pick
+        })
+
+        return picks.some(pick => {
+            if (pick.hit && !pick.getNormal().equals(Vector3.Up())) {
+                if(pick.pickedMesh.name.includes("stair")) {
+                    return true
+                }
+            }
+        })
+
+    }, [scene]);
 
     useEffect(() => {
         if (!scene) return;
