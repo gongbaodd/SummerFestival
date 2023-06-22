@@ -120,6 +120,9 @@ export const Player: FC<Props> = ({ shadow }) => {
     }, []);
 
     const moveDirection = signal(new Vector3(0, 0, 0));
+    const gravity = signal(new Vector3());
+    const grounded = signal(false);
+    const lastGroudPos = signal(new Vector3());
 
     const updateFromControls = useCallback(() => {
         if (!scene) return;
@@ -168,6 +171,17 @@ export const Player: FC<Props> = ({ shadow }) => {
         return !noGround;
     }, [floorRaycast]);
 
+    const updateGroundDetection = useCallback(() => {
+        if (!scene) return;
+        const deltaTime = scene.getEngine().getDeltaTime() / 1000;
+
+        if (isGrounded()) {
+            gravity.value.y = 0;
+            grounded.value = true;
+            lastGroudPos.value = player.position.clone();
+        }
+    }, [isGrounded])
+
     useEffect(() => {
         if (!scene) return;
         if (!cameraRef.current) return;
@@ -177,6 +191,7 @@ export const Player: FC<Props> = ({ shadow }) => {
     useBeforeRender(() => {
         camRoot.position = Vector3.Lerp(camRoot.position, player.position, 0.4);
         updateFromControls();
+        updateGroundDetection();
         player.moveWithCollisions(moveDirection.value);
     });
 
