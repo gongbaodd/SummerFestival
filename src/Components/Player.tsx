@@ -11,6 +11,7 @@ import {
     Nullable,
     ShadowGenerator,
     Ray,
+    PhysicsImpostor,
 } from "@babylonjs/core";
 import {
     FC,
@@ -42,81 +43,17 @@ const ORIGINAL_TILT = new Vector3(0.5934119456780721, 0, 0);
 
 const camPos = new Vector3(0, 0, -30);
 interface Props {
-    shadow: Nullable<ShadowGenerator>;
 }
 
 
-export const Player: FC<Props> = ({ shadow }) => {
+export const Player: FC<Props> = ({ }) => {
     const scene = useScene();
     const keyboard = useContext(Keyboard.Context);
 
     const cameraRef = useRef<UniversalCamera | null>(null);
-
-    const player = useMemo<Mesh>(() => {
-        if (!scene) return;
-
-        const outer = MeshBuilder.CreateBox(
-            "player",
-            { width: 2, depth: 1, height: 3 },
-            scene
-        );
-        outer.isVisible = false;
-        outer.isPickable = false;
-        outer.checkCollisions = true;
-
-        outer.bakeTransformIntoVertices(Matrix.Translation(0, 1.5, 0));
-
-        outer.ellipsoid = new Vector3(1, 1.5, 1);
-        outer.ellipsoidOffset = new Vector3(0, 1.5, 0);
-
-        outer.rotationQuaternion = new Quaternion(0, 1, 0, 0);
-
-        return outer;
-    }, [scene]);
-
-    const body = useMemo(() => {
-        if (!scene) return;
-
-        const body = MeshBuilder.CreateCylinder(
-            "body",
-            {
-                height: 3,
-                diameterTop: 2,
-                diameterBottom: 2,
-                tessellation: 0,
-                subdivisions: 0,
-            },
-            scene
-        );
-        const material = new StandardMaterial("ref", scene);
-        material.diffuseColor = new Color3(0.8, 0.5, 0.5);
-
-        body.material = material;
-        body.isPickable = false;
-        body.bakeTransformIntoVertices(Matrix.Translation(0, 1.5, 0));
-
-        return body;
-    }, [scene]);
-    const inner = useMemo(() => {
-        if (!scene) return;
-        const box = MeshBuilder.CreateBox(
-            "inner",
-            { width: 0.5, depth: 0.5, height: 0.25 },
-            scene
-        );
-        return box;
-    }, [scene]);
-    const camRoot = useMemo(() => {
-        const root = new TransformNode("CamRoot");
-        root.position = new Vector3(0, 0, 0);
-        root.rotation = new Vector3(0, Math.PI, 0);
-        return root;
-    }, []);
-    const yTilt = useMemo(() => {
-        const yTilt = new TransformNode("yTilt");
-        yTilt.rotation = ORIGINAL_TILT;
-        return yTilt;
-    }, []);
+    const camRootRef = useRef<TransformNode | null>(null);
+    const playerRef = useRef<Mesh | null>(null);
+    const bodyRef = useRef<Mesh | null>(null);
 
     const dashPressed = useSignal(false);
     const dashTime = useSignal(0);
@@ -143,8 +80,9 @@ export const Player: FC<Props> = ({ shadow }) => {
     }, [])
 
     const moveDirection = useComputed(() => {
+        const { current: camRoot } = camRootRef;
         const moveDirection = new Vector3(0, 0, 0)
-        if (!scene || !keyboard) return moveDirection
+        if (!scene || !keyboard || !camRoot) return moveDirection
 
         const h = keyboard.horizontal.value;
         const v = keyboard.vertical.value;
@@ -183,7 +121,9 @@ export const Player: FC<Props> = ({ shadow }) => {
     });
 
     const rotation = useComputed(() => {
-        if (!scene || !keyboard) return null;
+        const { current: player } = playerRef;
+        const { current: camRoot } = camRootRef;
+        if (!scene || !keyboard || !player) return null;
         const deltaTime = scene.getEngine().getDeltaTime() / 1000;
         const rotation = new Vector3(keyboard.horizontalAxis.value, 0, keyboard.verticalAxis.value);
         if (rotation.length() > 0) {
@@ -202,7 +142,8 @@ export const Player: FC<Props> = ({ shadow }) => {
     const isFalling = useSignal(false);
 
     const floorRaycast = useCallback((offsetx: number, offsetz: number, raycastlen: number) => {
-        if (!scene) return;
+        const { current: player } = playerRef
+        if (!scene || !player) return;
         const rayCastFloorPos = new Vector3(
             player.position.x + offsetx,
             player.position.y + 0.5,
@@ -228,7 +169,8 @@ export const Player: FC<Props> = ({ shadow }) => {
     }, [floorRaycast]);
 
     const updateGroundDetection = useCallback(() => {
-        if (!scene) return;
+        const { current: player } = playerRef;
+        if (!scene || !player) return;
         const deltaTime = scene.getEngine().getDeltaTime() / 1000;
         const isOnGround = isGrounded();
 
@@ -276,7 +218,8 @@ export const Player: FC<Props> = ({ shadow }) => {
     }, [isGrounded, keyboard])
 
     const checkSlope = useCallback(() => {
-        if (!scene) return;
+        const { current: player } = playerRef;
+        if (!scene || !player) return;
 
         const predicate = (mesh: Mesh) => mesh.isPickable && mesh.isEnabled()
 
@@ -315,15 +258,25 @@ export const Player: FC<Props> = ({ shadow }) => {
         if (!cameraRef.current) return;
         scene.activeCamera = cameraRef.current;
         cameraRef.current.detachControl()
-    }, [scene]);
+
+        if (playerRef.current) {
+            playerRef.current.bakeTransformIntoVertices(
+                Matrix.Translation(0, 1.5, 0)
+            );
+        }
+
+        if (bodyRef.current) {
+            bodyRef.current.bakeTransformIntoVertices(
+                Matrix.Translation(0, 1.5, 0)
+            );
+        }
+    }, [scene, cameraRef, playerRef, bodyRef]);
 
     useEffect(() => {
-        shadow?.addShadowCaster(player);
-    }, [shadow])
-
-    useEffect(() => {
+        const { current: player } = playerRef;
+        if (!player) return;
         const disposeAnimate = effect(() => {
-            updateGroundDetection();
+            // updateGroundDetection();
             if (rotation.value) {
                 player.rotationQuaternion = rotation.value;
             }
@@ -334,6 +287,8 @@ export const Player: FC<Props> = ({ shadow }) => {
     }, [])
 
     useBeforeRender(() => {
+        const { current: player } = playerRef;
+        const { current: camRoot } = camRootRef;
         const centerPlayer = new Vector3(
             player.position.x,
             player.position.y + 2,
@@ -348,19 +303,47 @@ export const Player: FC<Props> = ({ shadow }) => {
 
     return (
         <>
-            <abstractMesh name="player" fromInstance={player}>
-                <abstractMesh name="body" fromInstance={body}>
-                    <abstractMesh name="inner" fromInstance={inner} position={new Vector3(0, 0, 1)} />
-                </abstractMesh>
-            </abstractMesh>
-            <transformNode name="camRoot" fromInstance={camRoot}>
-                <transformNode name="yTilt" fromInstance={yTilt} >
+            <box
+                name="player"
+                width={2}
+                depth={1}
+                height={3}
+                isVisible={false}
+                isPickable={false}
+                checkCollisions={true}
+                ellipsoid={new Vector3(1, 1.5, 1)}
+                ellipsoidOffset={new Vector3(0, 1.5, 0)}
+                rotationQuaternion={new Quaternion(0, 1, 0, 0)}
+                ref={playerRef}
+            >
+                <physicsImpostor type={PhysicsImpostor.BoxImpostor} _options={{ mass: 1, restitution: 0.9 }} />
+                <cylinder
+                    name="body"
+                    height={3}
+                    diameterTop={2}
+                    diameterBottom={2}
+                    tessellation={0}
+                    subdivisions={0}
+                    isPickable={false}
+                    ref={bodyRef}
+                >
+                    <standardMaterial name="ref" diffuseColor={new Color3(.9,.5,.5)}/>
+                    <box name="inner" width={.5} depth={.5} height={.25} />
+                </cylinder>
+            </box>
+            <transformNode 
+                name="camRoot" 
+                position={new Vector3(0,0,0)}
+                rotation={new Vector3(0,Math.PI,0)}
+                ref={camRootRef}
+            >
+                <transformNode name="yTilt" rotation={ORIGINAL_TILT} >
                     <universalCamera
                         ref={cameraRef}
                         name="playerCam"
                         position={camPos}
                         fov={0.5}
-                        lockedTarget={camRoot.position}
+                        lockedTarget={camRootRef.current?.position}
                     />
                 </transformNode>
             </transformNode>
