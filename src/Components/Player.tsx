@@ -41,10 +41,10 @@ const DOWN_TILT = new Vector3(0.8290313946973066, 0, 0);
 const ORIGINAL_TILT = new Vector3(0.5934119456780721, 0, 0);
 
 const camPos = new Vector3(0, 0, -30);
-
 interface Props {
     shadow: Nullable<ShadowGenerator>;
 }
+
 
 export const Player: FC<Props> = ({ shadow }) => {
     const scene = useScene();
@@ -118,33 +118,36 @@ export const Player: FC<Props> = ({ shadow }) => {
         return yTilt;
     }, []);
 
-    const moveDirection = signal(new Vector3(0, 0, 0));
-    const gravity = useMemo(() => new Vector3(), []);
-    const grounded = signal(false);
-    const lastGroudPos = useMemo(() => new Vector3(), []);
-    const jumpCount = signal(1);
-    const dashPressed = signal(false);
-    const canDash = signal(true);
-    const dashTime = signal(0);
+    const dashPressed = useSignal(false);
+    const dashTime = useSignal(0);
+    const canDash = useSignal(true);
+    // handle dashing
+    useEffect(() => {
+        const exposeDashHanler = effect(() => {
+            const { dashing } = keyboard;
+            if (dashing.value && !dashPressed.value && canDash.value && !grounded.value) {
+                canDash.value = false;
+                dashPressed.value = true;
+            }
+    
+            if (dashPressed.value) {
+                if (dashTime.value > DASH_TIME) {
+                    dashTime.value = 0;
+                    dashPressed.value = false;
+                }
+                dashTime.value++;
+            }
+        });
 
-    const updateFromControls = useCallback(() => {
-        if (!scene) return;
-        if (!keyboard) return;
+        return exposeDashHanler;
+    }, [])
 
-        const deltaTime = scene.getEngine().getDeltaTime() / 1000;
+    const moveDirection = useComputed(() => {
+        const moveDirection = new Vector3(0, 0, 0)
+        if (!scene || !keyboard) return moveDirection
+
         const h = keyboard.horizontal.value;
         const v = keyboard.vertical.value;
-
-        let dashFactor = 1;
-        if (dashPressed.value) {
-            if (dashTime.value > DASH_TIME) {
-                dashTime.value = 0;
-                dashPressed.value = false;
-            } else {
-                dashFactor = DASH_FACTOR;
-            }
-            dashTime.value++;
-        }
 
         const fwd = camRoot.forward;
         const right = camRoot.right;
@@ -152,30 +155,49 @@ export const Player: FC<Props> = ({ shadow }) => {
         const correctedHorizontal = right.scaleInPlace(h);
         const move = correctedHorizontal.addInPlace(correctedVertical);
 
-        let inputAmt = Math.abs(h) + Math.abs(v);
-        if (inputAmt > 1) inputAmt = 1;
-        if (inputAmt < 0) inputAmt = 0;
-
-        moveDirection.value = new Vector3(
-            (move).normalize().x * dashFactor,
-            0,
-            (move).normalize().z * dashFactor
-        ).scaleInPlace(PLAYER_SPEED * inputAmt);
-
-        const { dashing } = keyboard;
-        if (dashing.value && !dashPressed.value && canDash.value && !grounded.value) {
-            canDash.value = false;
-            dashPressed.value = true;
+        const { inputAmt } = {
+            get inputAmt() {
+                const mag = Math.abs(h) + Math.abs(v)
+                if (mag > 1) return 1
+                if (mag < 0) return 0
+                return mag
+            }
         }
 
-        // rotation
+        const { dashFactor } = {
+            get dashFactor() {
+                if (dashPressed.value) {
+                    if (dashTime.value <= DASH_TIME) {
+                        return DASH_FACTOR;
+                    }
+                }
+                return 1;
+            }
+        }
+
+        return new Vector3(
+            move.normalize().x * dashFactor,
+            0,
+            move.normalize().z * dashFactor
+        ).scaleInPlace(PLAYER_SPEED * inputAmt);
+    });
+
+    const rotation = useComputed(() => {
+        if (!scene || !keyboard) return null;
+        const deltaTime = scene.getEngine().getDeltaTime() / 1000;
         const rotation = new Vector3(keyboard.horizontalAxis.value, 0, keyboard.verticalAxis.value);
         if (rotation.length() > 0) {
             const angle = Math.atan2(keyboard.horizontalAxis.value, keyboard.verticalAxis.value) + camRoot.rotation.y;
             const targ = Quaternion.FromEulerAngles(0, angle, 0);
-            player.rotationQuaternion = Quaternion.Slerp(player.rotationQuaternion, targ, 10 * deltaTime);
+            return Quaternion.Slerp(player.rotationQuaternion, targ, 10 * deltaTime);
         }
-    }, [scene, keyboard]);
+        return null
+    });
+
+    const gravity = useMemo(() => new Vector3(), []);
+    const grounded = signal(false);
+    const lastGroudPos = useMemo(() => new Vector3(), []);
+    const jumpCount = signal(1);
 
     const floorRaycast = useCallback((offsetx: number, offsetz: number, raycastlen: number) => {
         if (!scene) return;
@@ -209,8 +231,8 @@ export const Player: FC<Props> = ({ shadow }) => {
             dashPressed.value = false;
         }
 
-        const { jumKeyDown } = keyboard;
-        if (jumKeyDown.value && jumpCount.value > 0) {
+        const { jumpKeyDown } = keyboard;
+        if (jumpKeyDown.value && jumpCount.value > 0) {
             gravity.y = JUMP_FORCE;
             jumpCount.value--;
         }
@@ -263,9 +285,11 @@ export const Player: FC<Props> = ({ shadow }) => {
     }, [shadow])
 
     useBeforeRender(() => {
-        updateFromControls();
         updateGroundDetection();
-        player.moveWithCollisions(moveDirection.value);
+        if (rotation.value) {
+            player.rotationQuaternion = rotation.value;
+        }
+        player.moveWithCollisions(moveDirection.value.addInPlace(gravity));
 
         const centerPlayer = new Vector3(
             player.position.x,

@@ -19,7 +19,7 @@ interface IStates {
   horizontal: Signal<number>;
   horizontalAxis: Signal<number>;
   dashing: Signal<boolean>;
-  jumKeyDown: Signal<boolean>;
+  jumpKeyDown: Signal<boolean>;
 }
 
 interface IContext {
@@ -35,7 +35,7 @@ export const Keyboard: FC<Props> & IContext = function ({ children }) {
   const horizontal = useSignal(0);
   const horizontalAxis = useSignal(0);
   const dashing = useSignal(false);
-  const jumKeyDown = useSignal(false);
+  const jumpKeyDown = useSignal(false);
 
   
   const keyDown = useMemo(
@@ -43,7 +43,7 @@ export const Keyboard: FC<Props> & IContext = function ({ children }) {
       new ExecuteCodeAction(ActionManager.OnKeyDownTrigger, (evt) => {
         const isKeydown = evt.sourceEvent.type === "keydown";
         keyMap.set(evt.sourceEvent.key, isKeydown);
-        console.log("[keydown]", evt.sourceEvent.key);
+        console.log("[keydown]", `"${evt.sourceEvent.key}"`);
       }),
     []
   );
@@ -52,7 +52,7 @@ export const Keyboard: FC<Props> & IContext = function ({ children }) {
       new ExecuteCodeAction(ActionManager.OnKeyUpTrigger, (evt) => {
         const isKeydown = evt.sourceEvent.type === "keydown";
         keyMap.set(evt.sourceEvent.key, isKeydown);
-        console.log("[keyup]", evt.sourceEvent.key);
+        console.log("[keyup]", `"${evt.sourceEvent.key}"`);
       }),
     []
   );
@@ -96,11 +96,11 @@ export const Keyboard: FC<Props> & IContext = function ({ children }) {
     }
 
     if (keyMap.get(" ")) {
-      jumKeyDown.value = true;
+      jumpKeyDown.value = true;
     } else {
-      jumKeyDown.value = false;
+      jumpKeyDown.value = false;
     }
-  }, [keyMap, horizontal, vertical, dashing, jumKeyDown]);
+  }, [keyMap, horizontal, vertical, dashing, jumpKeyDown]);
 
 
   useBeforeRender(() => {
@@ -115,7 +115,7 @@ export const Keyboard: FC<Props> & IContext = function ({ children }) {
         horizontal: horizontal,
         horizontalAxis: horizontalAxis,
         dashing: dashing,
-        jumKeyDown: jumKeyDown,
+        jumpKeyDown: jumpKeyDown,
       }}
     >
       {children}
