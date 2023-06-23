@@ -129,7 +129,7 @@ export const Player: FC<Props> = ({ shadow }) => {
                 canDash.value = false;
                 dashPressed.value = true;
             }
-    
+
             if (dashPressed.value) {
                 if (dashTime.value > DASH_TIME) {
                     dashTime.value = 0;
@@ -198,11 +198,21 @@ export const Player: FC<Props> = ({ shadow }) => {
     const grounded = useSignal(false);
     const lastGroudPos = useSignal(new Vector3());
     const jumpCount = useSignal(1);
+    const jumped = useSignal(false);
+    const isFalling = useSignal(false);
 
     const floorRaycast = useCallback((offsetx: number, offsetz: number, raycastlen: number) => {
         if (!scene) return;
-        const rayCastFloorPos = new Vector3(player.position.x + offsetx, player.position.y + 0.5, player.position.z + offsetz);
-        const ray = new Ray(rayCastFloorPos, Vector3.Up().scale(-1), raycastlen);
+        const rayCastFloorPos = new Vector3(
+            player.position.x + offsetx,
+            player.position.y + 0.5,
+            player.position.z + offsetz,
+        );
+        const ray = new Ray(
+            rayCastFloorPos,
+            Vector3.Up().scale(-1),
+            raycastlen,
+        );
         const predict = (mesh: Mesh) => mesh.isPickable && mesh.isEnabled()
         const pick = scene.pickWithRay(ray, predict);
         if (pick.hit) {
@@ -220,16 +230,9 @@ export const Player: FC<Props> = ({ shadow }) => {
     const updateGroundDetection = useCallback(() => {
         if (!scene) return;
         const deltaTime = scene.getEngine().getDeltaTime() / 1000;
+        const isOnGround = isGrounded();
 
-        if (isGrounded()) {
-            gravity.value.y = 0;
-            grounded.value = true;
-            lastGroudPos.value.copyFrom(player.position);
-            jumpCount.value = 1;
-            canDash.value = true;
-            dashTime.value = 0;
-            dashPressed.value = false;
-        } else {
+        if (!isOnGround) {
             if (checkSlope() && gravity.value.y <= 0) {
                 gravity.value.y = 0
                 jumpCount.value = 1
@@ -242,10 +245,33 @@ export const Player: FC<Props> = ({ shadow }) => {
             }
         }
 
+        if (gravity.value.y < -JUMP_FORCE) {
+            gravity.value.y = -JUMP_FORCE
+        }
+
+        if (gravity.value.y < 0 && jumped.value) {
+            isFalling.value = true
+        }
+
+        if (isGrounded()) {
+            gravity.value.y = 0;
+            grounded.value = true;
+            lastGroudPos.value.copyFrom(player.position);
+            jumpCount.value = 1;
+            canDash.value = true;
+            dashTime.value = 0;
+            dashPressed.value = false;
+            jumped.value = false;
+            isFalling.value = false;
+        }
+
         const { jumpKeyDown } = keyboard;
         if (jumpKeyDown.value && jumpCount.value > 0) {
             gravity.value.y = JUMP_FORCE;
             jumpCount.value--;
+
+            jumped.value = true;
+            isFalling.value = false;
         }
     }, [isGrounded, keyboard])
 
@@ -295,13 +321,19 @@ export const Player: FC<Props> = ({ shadow }) => {
         shadow?.addShadowCaster(player);
     }, [shadow])
 
-    useBeforeRender(() => {
-        updateGroundDetection();
-        if (rotation.value) {
-            player.rotationQuaternion = rotation.value;
-        }
-        player.moveWithCollisions(moveDirection.value.addInPlace(gravity.value));
+    useEffect(() => {
+        const disposeAnimate = effect(() => {
+            updateGroundDetection();
+            if (rotation.value) {
+                player.rotationQuaternion = rotation.value;
+            }
+            player.moveWithCollisions(moveDirection.value.addInPlace(gravity.value));
+        })
 
+        return disposeAnimate
+    }, [])
+
+    useBeforeRender(() => {
         const centerPlayer = new Vector3(
             player.position.x,
             player.position.y + 2,
@@ -309,7 +341,7 @@ export const Player: FC<Props> = ({ shadow }) => {
         )
         camRoot.position = Vector3.Lerp(
             camRoot.position,
-            centerPlayer, 
+            centerPlayer,
             0.4
         );
     });
@@ -318,7 +350,7 @@ export const Player: FC<Props> = ({ shadow }) => {
         <>
             <abstractMesh name="player" fromInstance={player}>
                 <abstractMesh name="body" fromInstance={body}>
-                    <abstractMesh name="inner" fromInstance={inner} position={new Vector3(0,0,1)} />
+                    <abstractMesh name="inner" fromInstance={inner} position={new Vector3(0, 0, 1)} />
                 </abstractMesh>
             </abstractMesh>
             <transformNode name="camRoot" fromInstance={camRoot}>
