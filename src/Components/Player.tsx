@@ -314,9 +314,10 @@ export const Player: FC<Props> = ({ }) => {
                 ellipsoid={new Vector3(1, 1.5, 1)}
                 ellipsoidOffset={new Vector3(0, 1.5, 0)}
                 rotationQuaternion={new Quaternion(0, 1, 0, 0)}
+                position={new Vector3(0, 2, 0)}
                 ref={playerRef}
             >
-                <physicsImpostor type={PhysicsImpostor.BoxImpostor} _options={{ mass: 1, restitution: 0.9 }} />
+                <physicsImpostor type={PhysicsImpostor.BoxImpostor} _options={{ mass: 100, restitution: 0.001, friction: 0.3 }} />
                 <cylinder
                     name="body"
                     height={3}
@@ -328,7 +329,7 @@ export const Player: FC<Props> = ({ }) => {
                     ref={bodyRef}
                 >
                     <standardMaterial name="ref" diffuseColor={new Color3(.9,.5,.5)}/>
-                    <box name="inner" width={.5} depth={.5} height={.25} />
+                    <box name="inner" width={.5} depth={.5} height={.25} position={new Vector3(0, 1, 0)} />
                 </cylinder>
             </box>
             <transformNode 

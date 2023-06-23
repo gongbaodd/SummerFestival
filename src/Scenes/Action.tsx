@@ -6,7 +6,7 @@ import { useBeforeRender, useScene } from "react-babylonjs"
 import { Player } from "../Components/Player"
 import { Keyboard } from "../Components/Keyboard"
 import { CannonJSPlugin } from "@babylonjs/core"
-import * as cannon from "cannon";
+import * as cannon from "cannon-es";
 
 const gravityVector = new Vector3(0, -.98, 0)
 
@@ -51,7 +51,7 @@ const Stage = () => {
     return (
         <Keyboard>
             <ground name="ground" receiveShadows={true} width={24} height={24} >
-                <physicsImpostor type={PhysicsImpostor.BoxImpostor} _options={{ mass: 0, restitution: 0.9 }} />
+                <physicsImpostor type={PhysicsImpostor.BoxImpostor} _options={{ mass: 0, restitution:  0.00001}} />
             </ground>
             <hemisphericLight name="envLight" direction={envLightDirection} />
             <pointLight 
