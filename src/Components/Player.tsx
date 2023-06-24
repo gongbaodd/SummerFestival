@@ -55,24 +55,34 @@ export const Player: FC<Props> = ({ }) => {
     const playerRef = useRef<Mesh | null>(null);
     const bodyRef = useRef<Mesh | null>(null);
 
-    const dashPressed = useSignal(false);
-    const dashTime = useSignal(0);
-    const canDash = useSignal(true);
+    const state = useMemo(() => ({
+        dashPressed: false,
+        dashTime: 0,
+        canDash: true,
+        grounded: false,
+        lastGroudPos: new Vector3(),
+        jumpCount: 1,
+        jumped: false,
+        isFalling: false,
+    }), []);
+
     // handle dashing
     useEffect(() => {
         const exposeDashHanler = effect(() => {
             const { dashing } = keyboard;
-            if (dashing.value && !dashPressed.value && canDash.value && !grounded.value) {
-                canDash.value = false;
-                dashPressed.value = true;
+            const { dashPressed, dashTime, canDash, grounded } = state;
+            
+            if (dashing.value && !dashPressed && canDash && !grounded) {
+                state.canDash = false;
+                state.dashPressed = true;
             }
 
-            if (dashPressed.value) {
-                if (dashTime.value > DASH_TIME) {
-                    dashTime.value = 0;
-                    dashPressed.value = false;
+            if (state.dashPressed) {
+                if (dashTime > DASH_TIME) {
+                    state.dashTime = 0;
+                    state.dashPressed = false;
                 }
-                dashTime.value++;
+                state.dashTime++;
             }
         });
 
@@ -104,8 +114,8 @@ export const Player: FC<Props> = ({ }) => {
 
         const { dashFactor } = {
             get dashFactor() {
-                if (dashPressed.value) {
-                    if (dashTime.value <= DASH_TIME) {
+                if (state.dashPressed) {
+                    if (state.dashTime <= DASH_TIME) {
                         return DASH_FACTOR;
                     }
                 }
@@ -135,11 +145,6 @@ export const Player: FC<Props> = ({ }) => {
     });
 
     const gravity = useSignal(new Vector3());
-    const grounded = useSignal(false);
-    const lastGroudPos = useSignal(new Vector3());
-    const jumpCount = useSignal(1);
-    const jumped = useSignal(false);
-    const isFalling = useSignal(false);
 
     const floorRaycast = useCallback((offsetx: number, offsetz: number, raycastlen: number) => {
         const { current: player } = playerRef
@@ -177,13 +182,13 @@ export const Player: FC<Props> = ({ }) => {
         if (!isOnGround) {
             if (checkSlope() && gravity.value.y <= 0) {
                 gravity.value.y = 0
-                jumpCount.value = 1
-                grounded.value = true
+                state.jumpCount = 1
+                state.grounded = true
             } else {
                 gravity.value = gravity.value.addInPlace(
                     Vector3.Up().scale(GRAVITY * deltaTime)
                 )
-                grounded.value = false
+                state.grounded = false
             }
         }
 
@@ -191,29 +196,29 @@ export const Player: FC<Props> = ({ }) => {
             gravity.value.y = -JUMP_FORCE
         }
 
-        if (gravity.value.y < 0 && jumped.value) {
-            isFalling.value = true
+        if (gravity.value.y < 0 && state.jumped) {
+            state.isFalling = true
         }
 
         if (isGrounded()) {
             gravity.value.y = 0;
-            grounded.value = true;
-            lastGroudPos.value.copyFrom(player.position);
-            jumpCount.value = 1;
-            canDash.value = true;
-            dashTime.value = 0;
-            dashPressed.value = false;
-            jumped.value = false;
-            isFalling.value = false;
+            state.grounded = true;
+            state.lastGroudPos.copyFrom(player.position);
+            state.jumpCount = 1;
+            state.canDash = true;
+            state.dashTime = 0;
+            state.dashPressed = false;
+            state.jumped = false;
+            state.isFalling = false;
         }
 
         const { jumpKeyDown } = keyboard;
-        if (jumpKeyDown.value && jumpCount.value > 0) {
+        if (jumpKeyDown.value && state.jumpCount > 0) {
             gravity.value.y = JUMP_FORCE;
-            jumpCount.value--;
+            state.jumpCount--;
 
-            jumped.value = true;
-            isFalling.value = false;
+            state.jumped = true;
+            state.isFalling = false;
         }
     }, [isGrounded, keyboard])
 
