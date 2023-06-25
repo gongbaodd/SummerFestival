@@ -71,7 +71,7 @@ export const Player: FC<Props> = ({ }) => {
         const exposeDashHanler = effect(() => {
             const { dashing } = keyboard;
             const { dashPressed, dashTime, canDash, grounded } = state;
-            
+
             if (dashing.value && !dashPressed && canDash && !grounded) {
                 state.canDash = false;
                 state.dashPressed = true;
@@ -147,18 +147,24 @@ export const Player: FC<Props> = ({ }) => {
     const gravity = useSignal(new Vector3());
 
     const moveYDirection = useComputed(() => {
-        const moveYDirection = new Vector3();
+        const y = 0;
         const { jumpKeyDown } = keyboard
+        const isOnGround = isGrounded()
+
         if (jumpKeyDown.value) {
-            moveYDirection.y = JUMP_FORCE;
+            if (isOnGround) {
+                return JUMP_FORCE;
+            }
         }
 
-        return moveYDirection
+        return y;
     });
 
     const floorRaycast = useCallback((offsetx: number, offsetz: number, raycastlen: number) => {
+        const Zero = Vector3.Zero();
         const { current: player } = playerRef
-        if (!scene || !player) return;
+        
+        if (!scene || !player) return Zero;
         const rayCastFloorPos = new Vector3(
             player.position.x + offsetx,
             player.position.y + 0.5,
@@ -169,17 +175,19 @@ export const Player: FC<Props> = ({ }) => {
             Vector3.Up().scale(-1),
             raycastlen,
         );
-        const predict = (mesh: Mesh) => mesh.isPickable && mesh.isEnabled()
-        const pick = scene.pickWithRay(ray, predict);
+        const pick = scene.pickWithRay(ray, (mesh: Mesh) =>
+            mesh.isEnabled() && mesh.isPickable
+        );
+
         if (pick.hit) {
             return pick.pickedPoint;
         } else {
-            return Vector3.Zero();
+            return Zero;
         }
     }, [scene]);
 
     const isGrounded = useCallback(() => {
-        const notOnGround = floorRaycast(0, 0, 0.6).equals(Vector3.Zero());
+        const notOnGround = floorRaycast(0, 0, 2.1).equals(Vector3.Zero());
         return !notOnGround;
     }, [floorRaycast]);
 
@@ -295,10 +303,12 @@ export const Player: FC<Props> = ({ }) => {
             if (rotation.value) {
                 player.rotationQuaternion = rotation.value;
             }
+
+            const moveDirection = moveXZDirection.value.clone()
+            moveDirection.y = moveYDirection.value
+
             player.moveWithCollisions(
-                moveXZDirection.value.addInPlace(
-                    moveYDirection.value
-                ),
+                moveDirection
             );
         })
 
@@ -308,6 +318,7 @@ export const Player: FC<Props> = ({ }) => {
     useBeforeRender(() => {
         const { current: player } = playerRef;
         const { current: camRoot } = camRootRef;
+
         const centerPlayer = new Vector3(
             player.position.x,
             player.position.y + 2,
@@ -333,10 +344,10 @@ export const Player: FC<Props> = ({ }) => {
                 ellipsoid={new Vector3(1, 1.5, 1)}
                 ellipsoidOffset={new Vector3(0, 1.5, 0)}
                 rotationQuaternion={new Quaternion(0, 1, 0, 0)}
-                position={new Vector3(0, 2, 0)}
+                position={new Vector3(0, 1.5, 0)}
                 ref={playerRef}
             >
-                <physicsImpostor type={PhysicsImpostor.BoxImpostor} _options={{ mass: 100, restitution: 0.001, friction: 0.001  }} />
+                <physicsImpostor type={PhysicsImpostor.BoxImpostor} _options={{ mass: 100, restitution: 0.001, friction: 0.001 }} />
                 <cylinder
                     name="body"
                     height={3}
@@ -347,14 +358,14 @@ export const Player: FC<Props> = ({ }) => {
                     isPickable={false}
                     ref={bodyRef}
                 >
-                    <standardMaterial name="ref" diffuseColor={new Color3(.9,.5,.5)}/>
+                    <standardMaterial name="ref" diffuseColor={new Color3(.9, .5, .5)} />
                     <box name="inner" width={.5} depth={.5} height={.25} position={new Vector3(0, 1, 0)} />
                 </cylinder>
             </box>
-            <transformNode 
-                name="camRoot" 
-                position={new Vector3(0,0,0)}
-                rotation={new Vector3(0,Math.PI,0)}
+            <transformNode
+                name="camRoot"
+                position={new Vector3(0, 0, 0)}
+                rotation={new Vector3(0, Math.PI, 0)}
                 ref={camRootRef}
             >
                 <transformNode name="yTilt" rotation={ORIGINAL_TILT} >

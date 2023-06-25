@@ -50,7 +50,7 @@ const Stage = () => {
 
     return (
         <Keyboard>
-            <ground name="ground" receiveShadows={true} width={24} height={24} >
+            <ground name="ground" receiveShadows={true} width={24} height={24} isPickable={true} >
                 <physicsImpostor type={PhysicsImpostor.BoxImpostor} _options={{ mass: 0, restitution:  0.00001}} />
             </ground>
             <hemisphericLight name="envLight" direction={envLightDirection} />
