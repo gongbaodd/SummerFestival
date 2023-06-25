@@ -89,7 +89,7 @@ export const Player: FC<Props> = ({ }) => {
         return exposeDashHanler;
     }, [])
 
-    const moveDirection = useComputed(() => {
+    const moveXZDirection = useComputed(() => {
         const { current: camRoot } = camRootRef;
         const moveDirection = new Vector3(0, 0, 0)
         if (!scene || !keyboard || !camRoot) return moveDirection
@@ -145,6 +145,16 @@ export const Player: FC<Props> = ({ }) => {
     });
 
     const gravity = useSignal(new Vector3());
+
+    const moveYDirection = useComputed(() => {
+        const moveYDirection = new Vector3();
+        const { jumpKeyDown } = keyboard
+        if (jumpKeyDown.value) {
+            moveYDirection.y = JUMP_FORCE;
+        }
+
+        return moveYDirection
+    });
 
     const floorRaycast = useCallback((offsetx: number, offsetz: number, raycastlen: number) => {
         const { current: player } = playerRef
@@ -285,7 +295,11 @@ export const Player: FC<Props> = ({ }) => {
             if (rotation.value) {
                 player.rotationQuaternion = rotation.value;
             }
-            player.moveWithCollisions(moveDirection.value.addInPlace(gravity.value));
+            player.moveWithCollisions(
+                moveXZDirection.value.addInPlace(
+                    moveYDirection.value
+                ),
+            );
         })
 
         return disposeAnimate
@@ -322,7 +336,7 @@ export const Player: FC<Props> = ({ }) => {
                 position={new Vector3(0, 2, 0)}
                 ref={playerRef}
             >
-                <physicsImpostor type={PhysicsImpostor.BoxImpostor} _options={{ mass: 100, restitution: 0.001, friction: 0.3 }} />
+                <physicsImpostor type={PhysicsImpostor.BoxImpostor} _options={{ mass: 100, restitution: 0.001, friction: 0.001  }} />
                 <cylinder
                     name="body"
                     height={3}
