@@ -12,9 +12,13 @@ import {
     ShadowGenerator,
     Ray,
     PhysicsImpostor,
+    SceneLoader,
+    MeshAssetTask,
+    PointLight,
 } from "@babylonjs/core";
 import {
     FC,
+    Suspense,
     forwardRef,
     useCallback,
     useContext,
@@ -22,7 +26,7 @@ import {
     useMemo,
     useRef,
 } from "react";
-import { useBeforeRender, useScene } from "react-babylonjs";
+import { MeshTask, Scene, TaskType, useAssetManager, useBeforeRender, useScene } from "react-babylonjs";
 import { setForwardRef } from "../Helpers/ref";
 import { Keyboard } from "./Keyboard";
 import {
@@ -32,6 +36,33 @@ import {
     useComputed,
     useSignal,
 } from "@preact/signals-react";
+
+const playerMeshTask: MeshTask[] = [{
+    name: "player",
+    rootUrl: "/models/",
+    sceneFilename: "player.glb",
+    taskType: TaskType.Mesh,
+}]
+
+const PlayerAsset: FC<{onLoad: (body: Mesh) => void}> = ({onLoad}) => {
+    const result = useAssetManager(playerMeshTask)
+
+    useEffect(() => {
+        if (!onLoad) return
+
+        const asset = result.taskNameMap["player"] as MeshAssetTask
+        if (!asset || !asset.loadedMeshes) return
+
+        const body = asset.loadedMeshes[0] as Mesh
+        body.isPickable = false
+        body.getChildMeshes().forEach(mesh => {
+            mesh.isPickable = false
+        })
+        onLoad(body)
+    }, [result, onload])
+
+    return null
+}
 
 const PLAYER_SPEED = 0.45;
 const JUMP_FORCE = 0.8;
@@ -43,10 +74,13 @@ const ORIGINAL_TILT = new Vector3(0.5934119456780721, 0, 0);
 
 const camPos = new Vector3(0, 0, -30);
 interface Props {
+    shadow: Nullable<ShadowGenerator>;
+    light: Nullable<PointLight>;
+    position: Vector3;
 }
 
 
-export const Player: FC<Props> = ({ }) => {
+export const Player: FC<Props> = ({ shadow, light, position }) => {
     const scene = useScene();
     const keyboard = useContext(Keyboard.Context);
 
@@ -279,8 +313,9 @@ export const Player: FC<Props> = ({ }) => {
     useEffect(() => {
         if (!scene) return;
         if (!cameraRef.current) return;
+
         scene.activeCamera = cameraRef.current;
-        cameraRef.current.detachControl()
+        // cameraRef.current.detachControl()
 
         if (playerRef.current) {
             playerRef.current.bakeTransformIntoVertices(
@@ -293,7 +328,13 @@ export const Player: FC<Props> = ({ }) => {
                 Matrix.Translation(0, 1.5, 0)
             );
         }
+
     }, [scene, cameraRef, playerRef, bodyRef]);
+
+    useEffect(() => {
+        if (!shadow) return;
+        if (!light) return;
+    }, [ shadow, light])
 
     useEffect(() => {
         const { current: player } = playerRef;
@@ -331,6 +372,16 @@ export const Player: FC<Props> = ({ }) => {
         );
     });
 
+    const onAssetLoaded = useCallback((body: Mesh) => {
+        if (!scene) return;
+        if (!light) return;
+        if (!playerRef.current) return;
+
+        body.parent = playerRef.current;
+        light.parent = scene.getTransformNodeByName("Empty");
+
+    }, [scene, light]);
+
     return (
         <>
             <box
@@ -344,23 +395,13 @@ export const Player: FC<Props> = ({ }) => {
                 ellipsoid={new Vector3(1, 1.5, 1)}
                 ellipsoidOffset={new Vector3(0, 1.5, 0)}
                 rotationQuaternion={new Quaternion(0, 1, 0, 0)}
-                position={new Vector3(0, 1.5, 0)}
+                position={position}
                 ref={playerRef}
             >
                 <physicsImpostor type={PhysicsImpostor.BoxImpostor} _options={{ mass: 100, restitution: 0.001, friction: 0.001 }} />
-                <cylinder
-                    name="body"
-                    height={3}
-                    diameterTop={2}
-                    diameterBottom={2}
-                    tessellation={0}
-                    subdivisions={0}
-                    isPickable={false}
-                    ref={bodyRef}
-                >
-                    <standardMaterial name="ref" diffuseColor={new Color3(.9, .5, .5)} />
-                    <box name="inner" width={.5} depth={.5} height={.25} position={new Vector3(0, 1, 0)} />
-                </cylinder>
+                <Suspense>
+                    <PlayerAsset onLoad={onAssetLoaded} />
+                </Suspense>
             </box>
             <transformNode
                 name="camRoot"
